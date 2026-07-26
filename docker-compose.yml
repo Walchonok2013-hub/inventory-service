@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/inventory
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=supersecretkey
+      - JWT_EXPIRY_MINUTES=60
+    depends_on:
+      - db
+      - redis
+    networks:
+      - inventory-net
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: inventory
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - inventory-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - inventory-net
+
+  worker:
+    build: .
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/inventory
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - inventory-net
+
+  beat:
+    build: .
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/inventory
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - inventory-net
+
+volumes:
+  pgdata:
+
+networks:
+  inventory-net:
+    driver: bridge
