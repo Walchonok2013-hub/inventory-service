@@ -1,3 +1,5 @@
 ﻿fastapi
 uvicorn
 passlib[bcrypt]
+celery>=5.3.0
+redis
