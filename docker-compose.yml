@@ -30,42 +30,29 @@ services:
 
   app:
     build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env     
+    container_name: inventory_service-app
     environment:
-      - PYTHONPATH=/app      
-      - DATABASE_URL=postgresql+psycopg2://user:password@db:5432/mydb
-      - SECRET_KEY=supersecretkeychangeinproduction
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - EXPIRING_SOON_DAYS=3
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - PYTHONUNBUFFERED=1
+
+    working_dir: /app
+    # Команда: сначала проверяем, что модуль импортируется, потом стартуем gunicorn
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app 
-
-  worker:
-    build: .
-    command: celery -A app.celery beat --loglevel=info -s /tmp/celerybeat-schedule
-    environment:
-      - DATABASE_URL=postgresql+psycopg2://user:password@db:5432/mydb
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - .:/app
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
 
-  beat:
+  worker:
     build: .
-    command: celery -A app.celery beat --loglevel=info --scheduler=celery.beat:PersistentScheduler
+    command: celery -A app.celery worker --loglevel=info
     user: "1000:1000"
     environment:
       - DATABASE_URL=postgresql+psycopg2://user:password@db:5432/mydb
@@ -77,6 +64,23 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  beat:
+    build: .
+    # ПРАВИЛЬНАЯ КОМАНДА ДЛЯ BEAT:
+    command: celery -A app.celery beat --loglevel=info --scheduler=celery.beat:PersistentScheduler -s /tmp/celerybeat-schedule
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://user:password@db:5432/mydb
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:

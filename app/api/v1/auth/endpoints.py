@@ -25,16 +25,16 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
+    
+    # Хеширование пароля
+    hashed_password = get_password_hash(user_data.password)
 
-
-
-    db_user = User(username=user_data.username, hashed_password=hashed_pwd)
+    # Создание пользователя
+    db_user = User(username=user_data.username, hashed_password=hashed_password)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-
     return db_user
-
 
 @auth_router.post("/login")
 def login_for_access_token(
